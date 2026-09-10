@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Alokasi Stock HUB</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#16324F;
+    --ink-soft:#3D5A73;
+    --teal:#0F6B66;
+    --teal-deep:#0B4F4B;
+    --amber:#DE9A3C;
+    --bg:#F5F7F8;
+    --panel:#FFFFFF;
+    --border:#E1E7EA;
+    --danger:#C0533E;
+    --good:#2E7D5B;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 60px;}
+  h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0;}
+  header.top{
+    display:flex;justify-content:space-between;align-items:flex-start;
+    flex-wrap:wrap;gap:16px;margin-bottom:24px;
+  }
+  header.top h1{font-size:24px;color:var(--teal-deep);letter-spacing:-0.01em;}
+  header.top p{margin:4px 0 0;color:var(--ink-soft);font-size:14px;max-width:520px;}
+
+  .upload-card{
+    background:var(--panel);border:1px solid var(--border);border-radius:10px;
+    padding:22px;margin-bottom:22px;
+  }
+  .upload-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  .file-btn{
+    background:var(--teal);color:#fff;border:none;padding:10px 18px;border-radius:7px;
+    font-weight:600;font-size:14px;cursor:pointer;font-family:'Inter',sans-serif;
+    transition:background .15s ease;
+  }
+  .file-btn:hover{background:var(--teal-deep);}
+  .file-btn.disabled{opacity:.5;cursor:not-allowed;pointer-events:none;}
+  .file-name{color:var(--ink-soft);font-size:13px;}
+  .hint{color:var(--ink-soft);font-size:13px;margin-top:10px;line-height:1.5;}
+  input[type=file]{display:none;}
+
+  .status{font-size:13px;margin-top:10px;}
+  .status.error{color:var(--danger);}
+  .status.ok{color:var(--good);}
+
+  .stats-grid{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:12px;margin-bottom:22px;
+  }
+  .stat{
+    background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px 18px;
+  }
+  .stat .num{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:600;color:var(--teal-deep);}
+  .stat .label{font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
+
+  .tabs{display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--border);}
+  .tab-btn{
+    background:none;border:none;padding:10px 16px;font-size:14px;font-weight:600;
+    color:var(--ink-soft);cursor:pointer;border-bottom:2px solid transparent;font-family:'Inter',sans-serif;
+  }
+  .tab-btn.active{color:var(--teal-deep);border-bottom-color:var(--teal);}
+
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:18px;display:none;}
+  .panel.active{display:block;}
+
+  .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
+  .search{
+    border:1px solid var(--border);border-radius:7px;padding:8px 12px;font-size:13.5px;
+    width:260px;font-family:'Inter',sans-serif;
+  }
+  .export-btn{
+    background:#fff;border:1px solid var(--teal);color:var(--teal-deep);
+    padding:8px 14px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;
+  }
+  .export-btn:hover{background:#EAF4F3;}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead th{
+    text-align:left;padding:9px 10px;background:#F0F4F5;color:var(--ink-soft);
+    font-weight:600;font-size:11.5px;text-transform:none;cursor:pointer;
+    border-bottom:1px solid var(--border);white-space:nowrap;
+  }
+  thead th:hover{color:var(--teal-deep);}
+  tbody td{padding:9px 10px;border-bottom:1px solid #EEF1F2;white-space:nowrap;}
+  tbody tr:hover{background:#FAFCFC;}
+  .num-cell{text-align:right;font-variant-numeric:tabular-nums;}
+  .qty-badge{
+    background:#EAF4F3;color:var(--teal-deep);border-radius:5px;padding:2px 8px;
+    font-weight:600;font-variant-numeric:tabular-nums;
+  }
+  .check-ok{color:var(--good);font-weight:600;}
+  .check-bad{color:var(--danger);font-weight:600;}
+
+  .pager{display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:13px;color:var(--ink-soft);}
+  .pager button{
+    border:1px solid var(--border);background:#fff;border-radius:6px;padding:5px 10px;
+    cursor:pointer;font-size:13px;color:var(--ink);
+  }
+  .pager button:disabled{opacity:.4;cursor:default;}
+
+  .empty{padding:40px 10px;text-align:center;color:var(--ink-soft);font-size:14px;}
+  .empty b{color:var(--ink);}
+
+  code{background:#F0F4F5;padding:1px 6px;border-radius:4px;font-size:12px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>Dashboard Alokasi Stock HUB</h1>
+      <p>Upload Master (sheet <code>REGULAR</code>) sekali di awal, lalu upload Stock HUB (sheet <code>HUB</code>) tiap kali mau hitung ulang alokasi.</p>
+    </div>
+  </header>
+
+  <div class="upload-card">
+    <div class="upload-row">
+      <label class="file-btn" for="fileInputMaster">1. Upload Master (sheet REGULAR)</label>
+      <input type="file" id="fileInputMaster" accept=".xlsx,.xls">
+      <span class="file-name" id="fileNameMaster">Belum ada file dipilih</span>
+    </div>
+    <div class="hint">File harus punya sheet <b>REGULAR</b> berisi data per toko: Hub, SKU, SOH, Safety Stock, MTD Sales. Data ini tersimpan permanen di browser ini (tidak hilang walau tab ditutup/laptop di-restart), sampai Anda ganti dengan upload baru.</div>
+    <div id="statusMaster" class="status"></div>
+    <div id="masterInfo" style="display:none;margin-top:10px;">
+      <button class="export-btn" id="btnGantiMaster">Ganti / Hapus Master</button>
+    </div>
+  </div>
+
+  <div class="upload-card">
+    <div class="upload-row">
+      <label class="file-btn disabled" for="fileInputHub" id="fileInputHubLabel">2. Upload Stock HUB (sheet HUB)</label>
+      <input type="file" id="fileInputHub" accept=".xlsx,.xls" disabled>
+      <span class="file-name" id="fileNameHub">Belum ada file dipilih</span>
+    </div>
+    <div class="hint">File berisi sheet <b>HUB</b> dengan kolom SOH Hub per Hub+SKU. Upload file ini tiap ada update Stock HUB terbaru — alokasi otomatis dihitung ulang pakai Master yang sudah ada.</div>
+    <div id="statusHub" class="status"></div>
+  </div>
+
+  <div id="results" style="display:none;">
+
+    <div class="stats-grid">
+      <div class="stat"><div class="num" id="statSku">0</div><div class="label">Kombinasi Hub+SKU aktif</div></div>
+      <div class="stat"><div class="num" id="statUnits">0</div><div class="label">Total unit teralokasi</div></div>
+      <div class="stat"><div class="num" id="statStores">0</div><div class="label">Toko menerima alokasi</div></div>
+      <div class="stat"><div class="num" id="statNeed">0</div><div class="label">Kombinasi Hub+SKU kurang stock</div></div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="summary">Ringkasan per SKU</button>
+      <button class="tab-btn" data-tab="detail">Detail Alokasi per Toko</button>
+    </div>
+
+    <div class="panel active" id="panel-summary">
+      <div class="toolbar">
+        <input class="search" id="searchSummary" placeholder="Cari SKU / nama item / hub...">
+        <button class="export-btn" id="exportSummary">Download ringkasan (.xlsx)</button>
+      </div>
+      <div id="tableSummaryWrap"></div>
+      <div class="pager" id="pagerSummary"></div>
+    </div>
+
+    <div class="panel" id="panel-detail">
+      <div class="toolbar">
+        <input class="search" id="searchDetail" placeholder="Cari toko / SKU / nama item...">
+        <button class="export-btn" id="exportDetail">Download detail alokasi (.xlsx)</button>
+      </div>
+      <div id="tableDetailWrap"></div>
+      <div class="pager" id="pagerDetail"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const PAGE_SIZE = 40;
+let summaryData = [];
+let detailData = [];
+let summarySort = {key:'stockHub', dir:'desc'};
+let detailSort = {key:'qty', dir:'desc'};
+let summaryPage = 1, detailPage = 1;
+
+const $ = (id) => document.getElementById(id);
+
+const LS_MASTER_KEY = 'alokasiHub_master_v1';
+const LS_HUB_KEY = 'alokasiHub_lastHub_v1';
+
+let masterStores = null; // dimuat dari localStorage kalau ada, tetap tersimpan sampai user ganti
+let lastHubStock = null; // cache Stock HUB terakhir, dipakai lagi kalau Master di-upload ulang
+
+function saveMasterToStorage(stores) {
+  try {
+    localStorage.setItem(LS_MASTER_KEY, JSON.stringify(stores));
+    return true;
+  } catch (err) {
+    console.error('Gagal menyimpan Master ke localStorage:', err);
+    return false;
+  }
+}
+function loadMasterFromStorage() {
+  try {
+    const raw = localStorage.getItem(LS_MASTER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    console.error('Gagal membaca Master dari localStorage:', err);
+    return null;
+  }
+}
+function saveHubToStorage(hubStockMap) {
+  try {
+    localStorage.setItem(LS_HUB_KEY, JSON.stringify(Array.from(hubStockMap.entries())));
+    return true;
+  } catch (err) {
+    console.error('Gagal menyimpan Stock HUB ke localStorage:', err);
+    return false;
+  }
+}
+function loadHubFromStorage() {
+  try {
+    const raw = localStorage.getItem(LS_HUB_KEY);
+    return raw ? new Map(JSON.parse(raw)) : null;
+  } catch (err) {
+    console.error('Gagal membaca Stock HUB dari localStorage:', err);
+    return null;
+  }
+}
+
+function activateHubUpload() {
+  $('fileInputHub').disabled = false;
+  $('fileInputHubLabel').classList.remove('disabled');
+}
+
+function showMasterLoaded(stores, msg) {
+  masterStores = stores;
+  setStatus('statusMaster', msg, 'ok');
+  $('masterInfo').style.display = 'block';
+  activateHubUpload();
+}
+
+// ---- auto-load saat halaman dibuka ----
+(function initFromStorage() {
+  const storedMaster = loadMasterFromStorage();
+  if (storedMaster && storedMaster.length) {
+    showMasterLoaded(storedMaster, 'Master dimuat dari penyimpanan browser: ' + storedMaster.length.toLocaleString('id-ID') + ' baris toko. Langsung upload Stock HUB untuk hitung alokasi.');
+    const storedHub = loadHubFromStorage();
+    if (storedHub && storedHub.size) {
+      lastHubStock = storedHub;
+      computeAllocation(masterStores, lastHubStock);
+      setStatus('statusHub', 'Stock HUB terakhir dimuat dari penyimpanan browser (' + storedHub.size.toLocaleString('id-ID') + ' kombinasi Hub+SKU).', 'ok');
+      $('results').style.display = 'block';
+    }
+  }
+})();
+
+$('btnGantiMaster').addEventListener('click', () => {
+  if (!confirm('Hapus Master yang tersimpan? Anda perlu upload ulang file Master setelah ini.')) return;
+  masterStores = null;
+  lastHubStock = null;
+  try { localStorage.removeItem(LS_MASTER_KEY); localStorage.removeItem(LS_HUB_KEY); } catch (err) {}
+  $('masterInfo').style.display = 'none';
+  $('fileInputHub').disabled = true;
+  $('fileInputHubLabel').classList.add('disabled');
+  $('fileNameMaster').textContent = 'Belum ada file dipilih';
+  $('fileNameHub').textContent = 'Belum ada file dipilih';
+  $('results').style.display = 'none';
+  setStatus('statusMaster', 'Master dihapus. Silakan upload file Master baru.', '');
+  setStatus('statusHub', '', '');
+});
+
+$('fileInputMaster').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  $('fileNameMaster').textContent = file.name;
+  setStatus('statusMaster', 'Membaca file Master...', '');
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const data = new Uint8Array(ev.target.result);
+      const wb = XLSX.read(data, {type:'array', cellDates:false});
+      processMasterWorkbook(wb);
+    } catch (err) {
+      console.error(err);
+      setStatus('statusMaster', 'Gagal membaca file: ' + err.message, 'error');
+    }
+  };
+  reader.onerror = () => setStatus('statusMaster', 'Gagal membaca file dari komputer.', 'error');
+  reader.readAsArrayBuffer(file);
+});
+
+$('fileInputHub').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  $('fileNameHub').textContent = file.name;
+  setStatus('statusHub', 'Membaca file Stock HUB...', '');
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const data = new Uint8Array(ev.target.result);
+      const wb = XLSX.read(data, {type:'array', cellDates:false});
+      processHubWorkbook(wb);
+    } catch (err) {
+      console.error(err);
+      setStatus('statusHub', 'Gagal membaca file: ' + err.message, 'error');
+    }
+  };
+  reader.onerror = () => setStatus('statusHub', 'Gagal membaca file dari komputer.', 'error');
+  reader.readAsArrayBuffer(file);
+});
+
+function setStatus(id, msg, cls) {
+  const el = $(id);
+  el.textContent = msg;
+  el.className = 'status' + (cls ? ' ' + cls : '');
+}
+
+function findSheet(wb, nameGuess) {
+  const names = wb.SheetNames;
+  let exact = names.find(n => n.trim().toLowerCase() === nameGuess);
+  if (exact) return wb.Sheets[exact];
+  let contains = names.find(n => n.trim().toLowerCase().includes(nameGuess));
+  return contains ? wb.Sheets[contains] : null;
+}
+
+// Kolom (0-based), sesuai struktur Master Template:
+// REGULAR: 0 KodeStore, 1 StoreName, 3 SKU, 4 ItemDesc, 7 Hub, 12 SafetyStock, 13 SOH, 17 MTDSales
+// HUB: 3 SKU, 7 Hub, 14 SOH Hub
+
+function processMasterWorkbook(wb) {
+  const regSheet = findSheet(wb, 'regular');
+  if (!regSheet) {
+    setStatus('statusMaster', 'Sheet "REGULAR" tidak ditemukan di file ini.', 'error');
+    return;
+  }
+  const regRows = XLSX.utils.sheet_to_json(regSheet, {header:1, defval:null, raw:true});
+
+  const stores = [];
+  for (let i = 1; i < regRows.length; i++) {
+    const r = regRows[i];
+    if (!r || r[7] == null || r[3] == null) continue;
+    const soh = toNum(r[13]);
+    const mtd = toNum(r[17]);
+    const safety = toNum(r[12]);
+    if (soh === null) continue;
+    stores.push({
+      rowIndex: i,
+      kodeStore: r[0],
+      storeName: r[1],
+      sku: String(r[3]).trim(),
+      itemDesc: r[4],
+      hub: String(r[7]).trim(),
+      safety: safety || 0,
+      soh: soh,
+      mtd: mtd || 0,
+    });
+  }
+
+  if (stores.length === 0) {
+    setStatus('statusMaster', 'Tidak ada baris data valid ditemukan di sheet REGULAR.', 'error');
+    return;
+  }
+
+  const stored = saveMasterToStorage(stores);
+  showMasterLoaded(stores, 'Master tersimpan' + (stored ? ' (permanen di browser)' : '') + ': ' + stores.length.toLocaleString('id-ID') + ' baris toko dari sheet REGULAR. Silakan lanjut upload Stock HUB.');
+
+  // kalau Stock HUB sudah pernah di-upload sebelumnya, langsung hitung ulang dengan Master baru
+  if (lastHubStock) {
+    computeAllocation(masterStores, lastHubStock);
+    setStatus('statusHub', 'Alokasi dihitung ulang otomatis pakai Master terbaru.', 'ok');
+  }
+}
+
+function processHubWorkbook(wb) {
+  if (!masterStores) {
+    setStatus('statusHub', 'Upload Master (sheet REGULAR) dulu sebelum upload Stock HUB.', 'error');
+    return;
+  }
+  const hubSheet = findSheet(wb, 'hub');
+  if (!hubSheet) {
+    setStatus('statusHub', 'Sheet "HUB" tidak ditemukan di file ini.', 'error');
+    return;
+  }
+  const hubRows = XLSX.utils.sheet_to_json(hubSheet, {header:1, defval:null, raw:true});
+
+  const hubStock = new Map();
+  for (let i = 1; i < hubRows.length; i++) {
+    const r = hubRows[i];
+    if (!r || r[7] == null || r[3] == null) continue;
+    const key = String(r[7]).trim() + '|' + String(r[3]).trim();
+    const stockVal = toNum(r[14]) || 0;
+    if (!hubStock.has(key)) hubStock.set(key, stockVal);
+  }
+
+  if (hubStock.size === 0) {
+    setStatus('statusHub', 'Tidak ada baris data valid ditemukan di sheet HUB.', 'error');
+    return;
+  }
+
+  lastHubStock = hubStock;
+  saveHubToStorage(hubStock);
+  computeAllocation(masterStores, hubStock);
+  setStatus('statusHub', 'Berhasil memproses ' + hubStock.size.toLocaleString('id-ID') + ' kombinasi Hub+SKU dari sheet HUB.', 'ok');
+  $('results').style.display = 'block';
+}
+
+function toNum(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return isNaN(n) ? null : n;
+}
+
+function computeAllocation(stores, hubStock) {
+  const now = new Date();
+  const daysElapsed = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+
+  // group by hub|sku
+  const groups = new Map();
+  stores.forEach((s, idx) => {
+    const key = s.hub + '|' + s.sku;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(s);
+    s.internalIdx = idx;
+  });
+
+  summaryData = [];
+  detailData = [];
+
+  groups.forEach((rows, key) => {
+    const stockHub = hubStock.get(key) || 0;
+
+    // MOI ditampilkan untuk semua baris (informasi): 0 kalau tidak ada histori MTD Sales,
+    // atau SOH / (rate harian x hari dalam bulan) selama ada sales.
+    rows.forEach(r => {
+      r.moiDisplay = r.mtd === 0 ? 0 : r.soh / (r.mtd / daysElapsed * daysInMonth);
+    });
+
+    // kebutuhan per toko = Safety Stock - SOH, dibulatkan ke atas (Safety Stock bisa desimal,
+    // tapi Qty Alokasi harus bilangan bulat) - hanya kalau SOH masih di bawah Safety Stock
+    rows.forEach(r => {
+      r.kebutuhan = r.soh < r.safety ? Math.ceil(r.safety - r.soh) : 0;
+    });
+    const totalKebutuhan = rows.reduce((a, r) => a + r.kebutuhan, 0);
+
+    const cukup = stockHub >= totalKebutuhan;
+
+    if (cukup) {
+      // Stock HUB cukup: tiap toko yang butuh langsung dapat penuh sesuai (Safety Stock - SOH)
+      rows.forEach(r => { r.qty = r.kebutuhan; });
+    } else {
+      // Stock HUB tidak cukup: hanya toko yang SOH = 0 (total habis) yang ikut rebutan,
+      // dibagi rata (base + sisa), prioritas sisa berdasarkan MOI terkecil -> MTD Sales terbesar -> baris teratas.
+      const needRows = rows.filter(r => r.soh === 0);
+      const grpCount = needRows.length;
+      const base = grpCount ? Math.floor(stockHub / grpCount) : 0;
+      const sisa = grpCount ? (stockHub - base * grpCount) : 0;
+
+      needRows.forEach(r => { r.moiInternal = r.moiDisplay; }); // SOH=0 -> selalu 0 kecuali tidak ada sales (tetap 0)
+
+      needRows.sort((a,b) => {
+        if (a.moiInternal !== b.moiInternal) return a.moiInternal - b.moiInternal;
+        if (b.mtd !== a.mtd) return b.mtd - a.mtd;
+        return a.internalIdx - b.internalIdx;
+      });
+
+      needRows.forEach((r, i) => { r.qty = base + (i < sisa ? 1 : 0); });
+      rows.forEach(r => { if (r.qty === undefined) r.qty = 0; });
+    }
+
+    const totalAlloc = rows.reduce((a, r) => a + r.qty, 0);
+    if (rows.length) {
+      summaryData.push({
+        hub: rows[0].hub, sku: rows[0].sku, item: rows[0].itemDesc,
+        stockHub, kebutuhan: totalKebutuhan, totalAlloc,
+        status: cukup ? 'Cukup' : 'Kurang',
+      });
+    }
+    rows.forEach(r => {
+      if (r.qty > 0) {
+        detailData.push({
+          hub: r.hub, kodeStore: r.kodeStore, storeName: r.storeName,
+          sku: r.sku, item: r.itemDesc, soh: r.soh, safety: r.safety,
+          mtd: r.mtd, moi: r.moiDisplay, qty: r.qty,
+        });
+      }
+    });
+  });
+
+  $('statSku').textContent = summaryData.filter(s=>s.stockHub>0).length.toLocaleString('id-ID');
+  $('statUnits').textContent = detailData.reduce((a,b)=>a+b.qty,0).toLocaleString('id-ID');
+  $('statStores').textContent = detailData.length.toLocaleString('id-ID');
+  $('statNeed').textContent = summaryData.filter(s=>s.status==='Kurang').length.toLocaleString('id-ID');
+
+  summaryPage = 1; detailPage = 1;
+  renderSummary();
+  renderDetail();
+}
+
+// ---------- rendering: summary ----------
+function renderSummary() {
+  const q = $('searchSummary').value.trim().toLowerCase();
+  let rows = summaryData.filter(r =>
+    !q || (r.sku+'').toLowerCase().includes(q) || (r.item+'').toLowerCase().includes(q) || (r.hub+'').toLowerCase().includes(q)
+  );
+  rows = sortRows(rows, summarySort);
+
+  const total = rows.length;
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  summaryPage = Math.min(summaryPage, pages);
+  const start = (summaryPage-1)*PAGE_SIZE;
+  const pageRows = rows.slice(start, start+PAGE_SIZE);
+
+  if (!total) {
+    $('tableSummaryWrap').innerHTML = '<div class="empty">Tidak ada data yang cocok.</div>';
+    $('pagerSummary').innerHTML = '';
+    return;
+  }
+
+  const cols = [
+    {k:'hub', l:'Hub'}, {k:'sku', l:'SKU'}, {k:'item', l:'Item'},
+    {k:'stockHub', l:'Stock HUB', num:true}, {k:'kebutuhan', l:'Total Kebutuhan', num:true},
+    {k:'totalAlloc', l:'Total Teralokasi', num:true}, {k:'status', l:'Status'},
+  ];
+
+  let html = '<table><thead><tr>' + cols.map(c =>
+    `<th data-key="${c.k}" data-table="summary">${c.l}${sortArrow('summary',c.k)}</th>`
+  ).join('') + '</tr></thead><tbody>';
+
+  pageRows.forEach(r => {
+    let statusCell;
+    if (r.kebutuhan === 0) {
+      statusCell = `<td style="color:var(--ink-soft);">- <span style="font-size:11px;">(tidak ada kebutuhan)</span></td>`;
+    } else {
+      statusCell = `<td class="${r.status==='Cukup'?'check-ok':'check-bad'}">${r.status}</td>`;
+    }
+    html += `<tr>
+      <td>${esc(r.hub)}</td><td>${esc(r.sku)}</td><td>${esc(r.item)}</td>
+      <td class="num-cell">${r.stockHub}</td>
+      <td class="num-cell">${r.kebutuhan}</td>
+      <td class="num-cell">${r.totalAlloc}</td>
+      ${statusCell}
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  $('tableSummaryWrap').innerHTML = html;
+  renderPager('pagerSummary', summaryPage, pages, total, (p)=>{summaryPage=p; renderSummary();});
+  bindSortHeaders();
+}
+
+// ---------- rendering: detail ----------
+function renderDetail() {
+  const q = $('searchDetail').value.trim().toLowerCase();
+  let rows = detailData.filter(r =>
+    !q || (r.storeName+'').toLowerCase().includes(q) || (r.sku+'').toLowerCase().includes(q) ||
+          (r.item+'').toLowerCase().includes(q) || (r.kodeStore+'').toLowerCase().includes(q)
+  );
+  rows = sortRows(rows, detailSort);
+
+  const total = rows.length;
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  detailPage = Math.min(detailPage, pages);
+  const start = (detailPage-1)*PAGE_SIZE;
+  const pageRows = rows.slice(start, start+PAGE_SIZE);
+
+  if (!total) {
+    $('tableDetailWrap').innerHTML = '<div class="empty"><b>Belum ada alokasi.</b><br>Coba upload file dengan Stock HUB terisi, atau ubah kata kunci pencarian.</div>';
+    $('pagerDetail').innerHTML = '';
+    return;
+  }
+
+  const cols = [
+    {k:'hub', l:'Hub'}, {k:'kodeStore', l:'Kode Toko'}, {k:'storeName', l:'Nama Toko'},
+    {k:'sku', l:'SKU'}, {k:'item', l:'Item'},
+    {k:'soh', l:'SOH', num:true}, {k:'safety', l:'Safety Stock', num:true},
+    {k:'mtd', l:'MTD Sales', num:true},
+    {k:'moi', l:'MOI', num:true}, {k:'qty', l:'Qty Alokasi', num:true},
+  ];
+
+  let html = '<table><thead><tr>' + cols.map(c =>
+    `<th data-key="${c.k}" data-table="detail">${c.l}${sortArrow('detail',c.k)}</th>`
+  ).join('') + '</tr></thead><tbody>';
+
+  pageRows.forEach(r => {
+    html += `<tr>
+      <td>${esc(r.hub)}</td><td>${esc(r.kodeStore)}</td><td>${esc(r.storeName)}</td>
+      <td>${esc(r.sku)}</td><td>${esc(r.item)}</td>
+      <td class="num-cell">${r.soh}</td>
+      <td class="num-cell">${r.safety}</td>
+      <td class="num-cell">${r.mtd}</td>
+      <td class="num-cell">${r.moi.toFixed(2)}</td>
+      <td class="num-cell"><span class="qty-badge">${r.qty}</span></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  $('tableDetailWrap').innerHTML = html;
+  renderPager('pagerDetail', detailPage, pages, total, (p)=>{detailPage=p; renderDetail();});
+  bindSortHeaders();
+}
+
+function sortArrow(table, key) {
+  const s = table === 'summary' ? summarySort : detailSort;
+  if (s.key !== key) return '';
+  return s.dir === 'asc' ? ' ▲' : ' ▼';
+}
+
+function sortRows(rows, sortState) {
+  const { key, dir } = sortState;
+  const mult = dir === 'asc' ? 1 : -1;
+  return [...rows].sort((a,b) => {
+    let av = a[key], bv = b[key];
+    if (av === null) av = -Infinity;
+    if (bv === null) bv = -Infinity;
+    if (typeof av === 'string') return av.localeCompare(bv) * mult;
+    return (av - bv) * mult;
+  });
+}
+
+function bindSortHeaders() {
+  document.querySelectorAll('th[data-key]').forEach(th => {
+    th.onclick = () => {
+      const table = th.dataset.table;
+      const key = th.dataset.key;
+      const s = table === 'summary' ? summarySort : detailSort;
+      if (s.key === key) s.dir = s.dir === 'asc' ? 'desc' : 'asc';
+      else { s.key = key; s.dir = 'desc'; }
+      if (table === 'summary') renderSummary(); else renderDetail();
+    };
+  });
+}
+
+function renderPager(id, page, pages, total, onGo) {
+  const el = $(id);
+  el.innerHTML = '';
+  const info = document.createElement('span');
+  info.textContent = `${total.toLocaleString('id-ID')} baris — halaman ${page} / ${pages}`;
+  const controls = document.createElement('div');
+  const prev = document.createElement('button');
+  prev.textContent = '← Sebelumnya'; prev.disabled = page<=1;
+  prev.onclick = () => onGo(page-1);
+  const next = document.createElement('button');
+  next.textContent = 'Berikutnya →'; next.disabled = page>=pages;
+  next.onclick = () => onGo(page+1);
+  controls.style.display='flex'; controls.style.gap='8px';
+  controls.appendChild(prev); controls.appendChild(next);
+  el.appendChild(info); el.appendChild(controls);
+}
+
+function esc(v) {
+  if (v === null || v === undefined) return '';
+  return String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ---------- tabs ----------
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    $('panel-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+$('searchSummary').addEventListener('input', () => { summaryPage=1; renderSummary(); });
+$('searchDetail').addEventListener('input', () => { detailPage=1; renderDetail(); });
+
+// ---------- export ----------
+$('exportSummary').addEventListener('click', () => {
+  exportXlsx(summaryData.map(r => ({
+    Hub: r.hub, SKU: r.sku, Item: r.item, 'Stock HUB': r.stockHub,
+    'Total Kebutuhan': r.kebutuhan, 'Total Teralokasi': r.totalAlloc, Status: r.status,
+  })), 'Ringkasan_Alokasi_per_SKU.xlsx');
+});
+$('exportDetail').addEventListener('click', () => {
+  exportXlsx(detailData.map(r => ({
+    Hub: r.hub, 'Kode Toko': r.kodeStore, 'Nama Toko': r.storeName,
+    SKU: r.sku, Item: r.item, SOH: r.soh, 'Safety Stock': r.safety, 'MTD Sales': r.mtd,
+    MOI: r.moi, 'Qty Alokasi': r.qty,
+  })), 'Detail_Alokasi_per_Toko.xlsx');
+});
+
+function exportXlsx(jsonRows, filename) {
+  if (!jsonRows.length) return;
+  const ws = XLSX.utils.json_to_sheet(jsonRows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Data');
+  XLSX.writeFile(wb, filename);
+}
+</script>
+</body>
+</html>
