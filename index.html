@@ -178,32 +178,22 @@
   <header class="top">
     <div>
       <h1>Dashboard Alokasi Stock HUB</h1>
-      <p>Upload Master (sheet <code>REGULAR</code>) sekali di awal, lalu upload Stock HUB (sheet <code>HUB</code>) tiap kali mau hitung ulang alokasi.</p>
+      <p>Upload 1 file Excel (sheet <code>REGULAR</code>) yang sudah berisi SOH Qty Store (kolom J) dan SOH Hub (kolom K). Upload ulang file yang sama tiap kali mau update & hitung ulang alokasi.</p>
     </div>
   </header>
 
   <div class="upload-grid">
-  <div class="upload-card">
+  <div class="upload-card" style="max-width:640px;">
     <div class="upload-row">
-      <label class="file-btn" for="fileInputMaster">1. Upload Master (sheet REGULAR)</label>
+      <label class="file-btn" for="fileInputMaster">Upload File Alokasi (sheet REGULAR)</label>
       <input type="file" id="fileInputMaster" accept=".xlsx,.xls">
       <span class="file-name" id="fileNameMaster">Belum ada file dipilih</span>
     </div>
-    <div class="hint">File harus punya sheet <b>REGULAR</b> berisi data per toko: Hub, SKU, SOH, Safety Stock, MTD Sales. Data ini tersimpan permanen di browser ini (tidak hilang walau tab ditutup/laptop di-restart), sampai Anda ganti dengan upload baru.</div>
+    <div class="hint">File harus punya sheet <b>REGULAR</b> berisi data per toko: Kode Toko, Nama Toko, SKU, Item, Hub, Safety Stock, <b>SOH Qty Store (kolom J)</b>, <b>SOH Hub (kolom K)</b>, dan MTD Sales. Data ini tersimpan di server (sama untuk semua yang buka dashboard), sampai Anda upload file baru.</div>
     <div id="statusMaster" class="status"></div>
     <div id="masterInfo" style="display:none;margin-top:10px;">
-      <button class="export-btn" id="btnGantiMaster">Ganti / Hapus Master</button>
+      <button class="export-btn" id="btnGantiMaster">Hapus Data</button>
     </div>
-  </div>
-
-  <div class="upload-card">
-    <div class="upload-row">
-      <label class="file-btn disabled" for="fileInputHub" id="fileInputHubLabel">2. Upload Stock HUB (sheet HUB)</label>
-      <input type="file" id="fileInputHub" accept=".xlsx,.xls" disabled>
-      <span class="file-name" id="fileNameHub">Belum ada file dipilih</span>
-    </div>
-    <div class="hint">File berisi sheet <b>HUB</b> dengan kolom SOH Hub per Hub+SKU. Upload file ini tiap ada update Stock HUB terbaru — alokasi otomatis dihitung ulang pakai Master yang sudah ada.</div>
-    <div id="statusHub" class="status"></div>
   </div>
   </div>
 
@@ -256,7 +246,7 @@ const $ = (id) => document.getElementById(id);
 const API_URL = 'https://script.google.com/macros/s/AKfycbxOcP0QyKqV-BiUrIJVOdhp9ib98Arfj74AXjZTmhv3paZLEeW3CfoONZlfmQc7NwoL/exec';
 
 let masterStores = null; // dimuat dari server (shared, bukan per-browser lagi)
-let lastHubStock = null; // cache Stock HUB terakhir, dipakai lagi kalau Master di-upload ulang
+let lastHubStock = null; // Map Hub+SKU -> SOH Hub, diturunkan dari kolom K di file yang sama
 
 async function fetchWithTimeout(url, options, ms) {
   const controller = new AbortController();
@@ -301,16 +291,11 @@ function toCompactRows(objs, headers) {
   return objs.map(o => headers.map(h => (o[h] !== undefined && o[h] !== null) ? o[h] : ''));
 }
 
-function activateHubUpload() {
-  $('fileInputHub').disabled = false;
-  $('fileInputHubLabel').classList.remove('disabled');
-}
-
-function showMasterLoaded(stores, msg) {
+function showMasterLoaded(stores, hubStock, msg) {
   masterStores = stores;
+  lastHubStock = hubStock;
   setStatus('statusMaster', msg, 'ok');
   $('masterInfo').style.display = 'block';
-  activateHubUpload();
 }
 
 // ---- auto-load saat halaman dibuka: ambil data dari server, bukan browser ----
@@ -321,34 +306,26 @@ function showMasterLoaded(stores, msg) {
   }
   try {
     setStatus('statusMaster', 'Memuat data dari server...', '');
-    setStatus('statusHub', 'Memuat data dari server...', '');
     // Master & Stock HUB ditarik BARENGAN (paralel), bukan gantian, supaya lebih cepat.
     const [masterResp, hubResp] = await Promise.all([apiGet('master'), apiGet('hub')]);
     const masterRows = rowsToObjects(masterResp);
     if (masterRows.length) {
-      showMasterLoaded(masterRows, 'Master dimuat dari server: ' + masterRows.length.toLocaleString('id-ID') + ' baris toko (data ini sama untuk semua yang buka dashboard). Langsung upload Stock HUB untuk hitung alokasi.');
       const hubRows = rowsToObjects(hubResp);
-      if (hubRows.length) {
-        lastHubStock = new Map(hubRows.map(r => [r.hub + '|' + r.sku, Number(r.stockHub) || 0]));
-        computeAllocation(masterStores, lastHubStock);
-        setStatus('statusHub', 'Stock HUB terakhir dimuat dari server (' + hubRows.length.toLocaleString('id-ID') + ' kombinasi Hub+SKU).', 'ok');
-        $('results').style.display = 'block';
-      } else {
-        setStatus('statusHub', '', '');
-      }
+      const hubStock = new Map(hubRows.map(r => [r.hub + '|' + r.sku, Number(r.stockHub) || 0]));
+      showMasterLoaded(masterRows, hubStock, 'Data dimuat dari server: ' + masterRows.length.toLocaleString('id-ID') + ' baris toko, ' + hubRows.length.toLocaleString('id-ID') + ' kombinasi Hub+SKU punya SOH Hub (data ini sama untuk semua yang buka dashboard).');
+      computeAllocation(masterStores, hubStock);
+      $('results').style.display = 'block';
     } else {
       setStatus('statusMaster', '', '');
-      setStatus('statusHub', '', '');
     }
   } catch (err) {
     console.error(err);
     setStatus('statusMaster', 'Gagal memuat data dari server: ' + err.message, 'error');
-    setStatus('statusHub', 'Dibatalkan karena Master gagal dimuat.', 'error');
   }
 })();
 
 $('btnGantiMaster').addEventListener('click', async () => {
-  if (!confirm('Hapus Master yang tersimpan di server? Ini akan menghapus data untuk SEMUA orang yang pakai dashboard ini, dan perlu upload ulang file Master setelah ini.')) return;
+  if (!confirm('Hapus data yang tersimpan di server? Ini akan menghapus data untuk SEMUA orang yang pakai dashboard ini, dan perlu upload ulang file setelah ini.')) return;
   try {
     await apiPost('master', []);
     await apiPost('hub', []);
@@ -359,13 +336,9 @@ $('btnGantiMaster').addEventListener('click', async () => {
   masterStores = null;
   lastHubStock = null;
   $('masterInfo').style.display = 'none';
-  $('fileInputHub').disabled = true;
-  $('fileInputHubLabel').classList.add('disabled');
   $('fileNameMaster').textContent = 'Belum ada file dipilih';
-  $('fileNameHub').textContent = 'Belum ada file dipilih';
   $('results').style.display = 'none';
-  setStatus('statusMaster', 'Master dihapus dari server. Silakan upload file Master baru.', '');
-  setStatus('statusHub', '', '');
+  setStatus('statusMaster', 'Data dihapus dari server. Silakan upload file baru.', '');
 });
 
 $('fileInputMaster').addEventListener('change', (e) => {
@@ -388,26 +361,6 @@ $('fileInputMaster').addEventListener('change', (e) => {
   reader.readAsArrayBuffer(file);
 });
 
-$('fileInputHub').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  $('fileNameHub').textContent = file.name;
-  setStatus('statusHub', 'Membaca file Stock HUB...', '');
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    try {
-      const data = new Uint8Array(ev.target.result);
-      const wb = XLSX.read(data, {type:'array', cellDates:false});
-      processHubWorkbook(wb);
-    } catch (err) {
-      console.error(err);
-      setStatus('statusHub', 'Gagal membaca file: ' + err.message, 'error');
-    }
-  };
-  reader.onerror = () => setStatus('statusHub', 'Gagal membaca file dari komputer.', 'error');
-  reader.readAsArrayBuffer(file);
-});
-
 function setStatus(id, msg, cls) {
   const el = $(id);
   el.textContent = msg;
@@ -422,10 +375,12 @@ function findSheet(wb, nameGuess) {
   return contains ? wb.Sheets[contains] : null;
 }
 
-// Kolom (0-based), sesuai struktur Master Template (dikonfirmasi user):
-// REGULAR: 0 KodeStore, 1 StoreName, 3 SKU, 4 ItemDesc, 6 Hub,
-//          8 SafetyStock ("System Safety Stock"), 9 SOH ("SOH Qty"), 13 MTDSales ("MTD SALES")
-// HUB: 3 SKU, 6 Hub, 10 SOH Hub ("SOH Hub")
+// Kolom (0-based), sesuai struktur Template Master terbaru (1 file, sheet REGULAR):
+// 0 KodeStore, 1 StoreName, 3 SKU, 4 ItemDesc, 6 Hub,
+// 8 SafetyStock ("System Safety Stock"),
+// 9  SOH Qty Store (kolom J) — SOH per toko
+// 10 SOH Hub (kolom K)       — SOH per Hub+SKU (nilainya sama utk semua toko dalam 1 Hub+SKU)
+// 11 MTD Sales ("MTD SALES")
 
 async function processMasterWorkbook(wb) {
   const regSheet = findSheet(wb, 'regular');
@@ -440,25 +395,38 @@ async function processMasterWorkbook(wb) {
   const regRowsText = XLSX.utils.sheet_to_json(regSheet, {header:1, defval:null, raw:false});
 
   const stores = [];
+  const hubStock = new Map(); // key: Hub|SKU -> SOH Hub (kolom K)
+
   for (let i = 1; i < regRows.length; i++) {
     const r = regRows[i];
     const rt = regRowsText[i] || [];
     if (!r || r[6] == null || r[3] == null) continue;
     const soh = toNum(r[9]);
-    const mtd = toNum(r[13]);
+    const mtd = toNum(r[11]);
     const safety = toNum(r[8]);
     if (soh === null) continue;
+
+    const hub = String(r[6]).trim();
+    const sku = (rt[3] != null ? String(rt[3]) : String(r[3])).trim();
+
     stores.push({
       rowIndex: i,
       kodeStore: (rt[0] != null ? String(rt[0]) : String(r[0])).trim(),
       storeName: r[1],
-      sku: (rt[3] != null ? String(rt[3]) : String(r[3])).trim(),
+      sku: sku,
       itemDesc: r[4],
-      hub: String(r[6]).trim(),
+      hub: hub,
       safety: safety || 0,
       soh: soh,
       mtd: mtd || 0,
     });
+
+    // SOH Hub (kolom K) cukup diisi 1x per kombinasi Hub+SKU; ambil nilai pertama yang
+    // terisi supaya baris lain dalam kombinasi yang sama yang kosong tidak menimpanya.
+    if (!hubStock.has(hub + '|' + sku)) {
+      const stockVal = toNum(r[10]);
+      if (stockVal !== null) hubStock.set(hub + '|' + sku, stockVal);
+    }
   }
 
   if (stores.length === 0) {
@@ -466,66 +434,23 @@ async function processMasterWorkbook(wb) {
     return;
   }
 
-  setStatus('statusMaster', 'Menyimpan Master ke server (' + stores.length.toLocaleString('id-ID') + ' baris)... bisa sampai 1-2 menit untuk file besar, mohon tunggu.', '');
-  try {
-    await apiPost('master', toCompactRows(stores, MASTER_HEADERS));
-  } catch (err) {
-    setStatus('statusMaster', 'Gagal menyimpan Master ke server: ' + err.message, 'error');
-    return;
-  }
-  showMasterLoaded(stores, 'Master tersimpan di server (data yang sama akan muncul untuk semua orang yang buka dashboard ini): ' + stores.length.toLocaleString('id-ID') + ' baris toko dari sheet REGULAR. Silakan lanjut upload Stock HUB.');
-
-  // kalau Stock HUB sudah pernah di-upload sebelumnya, langsung hitung ulang dengan Master baru
-  if (lastHubStock) {
-    computeAllocation(masterStores, lastHubStock);
-    setStatus('statusHub', 'Alokasi dihitung ulang otomatis pakai Master terbaru.', 'ok');
-  }
-}
-
-async function processHubWorkbook(wb) {
-  if (!masterStores) {
-    setStatus('statusHub', 'Upload Master (sheet REGULAR) dulu sebelum upload Stock HUB.', 'error');
-    return;
-  }
-  const hubSheet = findSheet(wb, 'hub');
-  if (!hubSheet) {
-    setStatus('statusHub', 'Sheet "HUB" tidak ditemukan di file ini.', 'error');
-    return;
-  }
-  const hubRows = XLSX.utils.sheet_to_json(hubSheet, {header:1, defval:null, raw:true});
-  const hubRowsText = XLSX.utils.sheet_to_json(hubSheet, {header:1, defval:null, raw:false});
-
-  const hubStock = new Map();
-  for (let i = 1; i < hubRows.length; i++) {
-    const r = hubRows[i];
-    const rt = hubRowsText[i] || [];
-    if (!r || r[6] == null || r[3] == null) continue;
-    const skuText = (rt[3] != null ? String(rt[3]) : String(r[3])).trim();
-    const key = String(r[6]).trim() + '|' + skuText;
-    const stockVal = toNum(r[10]) || 0;
-    if (!hubStock.has(key)) hubStock.set(key, stockVal);
-  }
-
-  if (hubStock.size === 0) {
-    setStatus('statusHub', 'Tidak ada baris data valid ditemukan di sheet HUB.', 'error');
-    return;
-  }
-
-  setStatus('statusHub', 'Menyimpan Stock HUB ke server (' + hubStock.size.toLocaleString('id-ID') + ' kombinasi)...', '');
+  setStatus('statusMaster', 'Menyimpan data ke server (' + stores.length.toLocaleString('id-ID') + ' baris)... bisa sampai 1-2 menit untuk file besar, mohon tunggu.', '');
   const hubRowsForApi = Array.from(hubStock.entries()).map(([key, stockHub]) => {
     const [hub, sku] = key.split('|');
     return { hub, sku, stockHub };
   });
   try {
-    await apiPost('hub', toCompactRows(hubRowsForApi, HUB_HEADERS));
+    await Promise.all([
+      apiPost('master', toCompactRows(stores, MASTER_HEADERS)),
+      apiPost('hub', toCompactRows(hubRowsForApi, HUB_HEADERS)),
+    ]);
   } catch (err) {
-    setStatus('statusHub', 'Gagal menyimpan Stock HUB ke server: ' + err.message, 'error');
+    setStatus('statusMaster', 'Gagal menyimpan data ke server: ' + err.message, 'error');
     return;
   }
 
-  lastHubStock = hubStock;
+  showMasterLoaded(stores, hubStock, 'Data tersimpan di server (sama untuk semua yang buka dashboard ini): ' + stores.length.toLocaleString('id-ID') + ' baris toko, ' + hubStock.size.toLocaleString('id-ID') + ' kombinasi Hub+SKU punya SOH Hub.');
   computeAllocation(masterStores, hubStock);
-  setStatus('statusHub', 'Berhasil memproses ' + hubStock.size.toLocaleString('id-ID') + ' kombinasi Hub+SKU dari sheet HUB (tersimpan di server, sama untuk semua orang).', 'ok');
   $('results').style.display = 'block';
 }
 
