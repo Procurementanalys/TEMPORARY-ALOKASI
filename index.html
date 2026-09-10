@@ -125,20 +125,28 @@
   /* Bungkus tabel supaya kalau kolom kepanjangan, yang muncul scrollbar di DALAM card,
      bukan tabelnya meluber/offside keluar card. */
   .table-scroll{
-    overflow-x:auto;
+    overflow:auto;
     -webkit-overflow-scrolling:touch;
     border:1px solid var(--border);
     border-radius:10px;
+    max-height:min(640px,70vh);
   }
   .table-scroll table{margin-bottom:0;}
 
   table{width:100%;min-width:720px;border-collapse:separate;border-spacing:0;font-size:13px;}
   thead th{
+    position:sticky;top:0;z-index:2;
     text-align:left;padding:11px 12px;background:linear-gradient(180deg,#0F6B66,#0B4F4B);color:#EAF6F4;
     font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;
     border-bottom:1px solid var(--border);white-space:nowrap;
+    box-shadow:0 1px 0 rgba(0,0,0,.12);
   }
-  thead th:hover{color:#fff;}
+  thead th:hover{color:#fff;background:linear-gradient(180deg,#128079,#0C5B56);}
+  .hub-badge{
+    background:rgba(14,128,120,.12);color:var(--teal-deep);border-radius:999px;
+    padding:2px 10px;font-weight:700;font-size:12px;display:inline-block;
+  }
+  .row-count{color:var(--ink-soft);font-size:12.5px;font-weight:600;white-space:nowrap;}
   tbody td{padding:10px 12px;border-bottom:1px solid #EEF1F2;white-space:nowrap;vertical-align:top;}
   tbody tr:nth-child(even){background:#F7FAFA;}
   tbody tr:hover{background:#EAF4F3;}
@@ -179,6 +187,7 @@
     <div>
       <h1>Dashboard Alokasi Stock HUB</h1>
       <p>Upload 1 file Excel (sheet <code>REGULAR</code>) yang sudah berisi SOH Qty Store (kolom K) dan SOH Hub (kolom L). Upload ulang file yang sama tiap kali mau update & hitung ulang alokasi.</p>
+      <p id="lastComputed" style="margin-top:6px;font-size:12.5px;color:var(--ink-soft);"></p>
     </div>
   </header>
 
@@ -213,8 +222,11 @@
 
     <div class="panel active" id="panel-summary">
       <div class="toolbar">
-        <input class="search" id="searchSummary" placeholder="Cari SKU / nama item / hub...">
-        <button class="export-btn" id="exportSummary">Download ringkasan (.xlsx)</button>
+        <div class="upload-row" style="gap:12px;">
+          <input class="search" id="searchSummary" placeholder="Cari SKU / nama item / hub...">
+          <span class="row-count" id="countSummary"></span>
+        </div>
+        <button class="export-btn" id="exportSummary">⬇ Download Ringkasan (.xlsx)</button>
       </div>
       <div class="table-scroll"><div id="tableSummaryWrap"></div></div>
       <div class="pager" id="pagerSummary"></div>
@@ -222,8 +234,11 @@
 
     <div class="panel" id="panel-detail">
       <div class="toolbar">
-        <input class="search" id="searchDetail" placeholder="Cari toko / SKU / nama item...">
-        <button class="export-btn" id="exportDetail">Download detail alokasi (.xlsx)</button>
+        <div class="upload-row" style="gap:12px;">
+          <input class="search" id="searchDetail" placeholder="Cari toko / SKU / nama item...">
+          <span class="row-count" id="countDetail"></span>
+        </div>
+        <button class="export-btn" id="exportDetail">⬇ Download Detail Alokasi (.xlsx)</button>
       </div>
       <div class="table-scroll"><div id="tableDetailWrap"></div></div>
       <div class="pager" id="pagerDetail"></div>
@@ -536,7 +551,7 @@ function computeAllocation(stores, hubStock) {
       if (r.qty > 0) {
         detailData.push({
           hub: r.hub, kodeStore: r.kodeStore, storeName: r.storeName,
-          sku: r.sku, item: r.itemDesc, soh: r.soh, safety: r.safety,
+          sku: r.sku, item: r.itemDesc, stockHub, soh: r.soh, safety: r.safety,
           mtd: r.mtd, moi: r.moiDisplay, qty: r.qty,
         });
       }
@@ -551,6 +566,7 @@ function computeAllocation(stores, hubStock) {
   summaryPage = 1; detailPage = 1;
   renderSummary();
   renderDetail();
+  $('lastComputed').textContent = 'Alokasi dihitung ulang: ' + new Date().toLocaleString('id-ID');
 }
 
 // ---------- rendering: summary ----------
@@ -566,6 +582,8 @@ function renderSummary() {
   summaryPage = Math.min(summaryPage, pages);
   const start = (summaryPage-1)*PAGE_SIZE;
   const pageRows = rows.slice(start, start+PAGE_SIZE);
+
+  $('countSummary').textContent = total ? total.toLocaleString('id-ID') + ' baris' : '';
 
   if (!total) {
     $('tableSummaryWrap').innerHTML = '<div class="empty">Tidak ada data yang cocok.</div>';
@@ -591,7 +609,7 @@ function renderSummary() {
       statusCell = `<td class="${r.status==='Cukup'?'check-ok':'check-bad'}">${r.status}</td>`;
     }
     html += `<tr>
-      <td>${esc(r.hub)}</td><td>${esc(r.sku)}</td><td class="truncate" title="${esc(r.item)}">${esc(r.item)}</td>
+      <td><span class="hub-badge">${esc(r.hub)}</span></td><td>${esc(r.sku)}</td><td class="truncate" title="${esc(r.item)}">${esc(r.item)}</td>
       <td class="num-cell">${r.stockHub}</td>
       <td class="num-cell">${r.kebutuhan}</td>
       <td class="num-cell">${r.totalAlloc}</td>
@@ -619,6 +637,8 @@ function renderDetail() {
   const start = (detailPage-1)*PAGE_SIZE;
   const pageRows = rows.slice(start, start+PAGE_SIZE);
 
+  $('countDetail').textContent = total ? total.toLocaleString('id-ID') + ' baris' : '';
+
   if (!total) {
     $('tableDetailWrap').innerHTML = '<div class="empty"><b>Belum ada alokasi.</b><br>Coba upload file dengan Stock HUB terisi, atau ubah kata kunci pencarian.</div>';
     $('pagerDetail').innerHTML = '';
@@ -628,7 +648,8 @@ function renderDetail() {
   const cols = [
     {k:'hub', l:'Hub'}, {k:'kodeStore', l:'Kode Toko'}, {k:'storeName', l:'Nama Toko'},
     {k:'sku', l:'SKU'}, {k:'item', l:'Item'},
-    {k:'soh', l:'SOH', num:true}, {k:'safety', l:'Safety Stock', num:true},
+    {k:'stockHub', l:'SOH Hub', num:true},
+    {k:'soh', l:'SOH Toko', num:true}, {k:'safety', l:'Safety Stock', num:true},
     {k:'mtd', l:'MTD Sales', num:true},
     {k:'moi', l:'MOI', num:true}, {k:'qty', l:'Qty Alokasi', num:true},
   ];
@@ -639,8 +660,9 @@ function renderDetail() {
 
   pageRows.forEach(r => {
     html += `<tr>
-      <td>${esc(r.hub)}</td><td>${esc(r.kodeStore)}</td><td class="truncate" title="${esc(r.storeName)}">${esc(r.storeName)}</td>
+      <td><span class="hub-badge">${esc(r.hub)}</span></td><td>${esc(r.kodeStore)}</td><td class="truncate" title="${esc(r.storeName)}">${esc(r.storeName)}</td>
       <td>${esc(r.sku)}</td><td class="truncate" title="${esc(r.item)}">${esc(r.item)}</td>
+      <td class="num-cell">${r.stockHub}</td>
       <td class="num-cell">${r.soh}</td>
       <td class="num-cell">${r.safety}</td>
       <td class="num-cell">${r.mtd}</td>
@@ -721,25 +743,46 @@ $('searchSummary').addEventListener('input', () => { summaryPage=1; renderSummar
 $('searchDetail').addEventListener('input', () => { detailPage=1; renderDetail(); });
 
 // ---------- export ----------
+function todayStamp() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2,'0');
+  return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
+}
+
 $('exportSummary').addEventListener('click', () => {
+  if (!summaryData.length) { alert('Belum ada data ringkasan untuk di-export.'); return; }
   exportXlsx(summaryData.map(r => ({
-    Hub: r.hub, SKU: r.sku, Item: r.item, 'Stock HUB': r.stockHub,
+    Hub: r.hub, SKU: r.sku, Item: r.item, 'SOH Hub': r.stockHub,
     'Total Kebutuhan': r.kebutuhan, 'Total Teralokasi': r.totalAlloc, Status: r.status,
-  })), 'Ringkasan_Alokasi_per_SKU.xlsx');
+  })), 'Ringkasan_Alokasi_per_SKU_' + todayStamp() + '.xlsx', 'Ringkasan');
 });
 $('exportDetail').addEventListener('click', () => {
+  if (!detailData.length) { alert('Belum ada data detail alokasi untuk di-export.'); return; }
   exportXlsx(detailData.map(r => ({
     Hub: r.hub, 'Kode Toko': r.kodeStore, 'Nama Toko': r.storeName,
-    SKU: r.sku, Item: r.item, SOH: r.soh, 'Safety Stock': r.safety, 'MTD Sales': r.mtd,
-    MOI: r.moi, 'Qty Alokasi': r.qty,
-  })), 'Detail_Alokasi_per_Toko.xlsx');
+    SKU: r.sku, Item: r.item, 'SOH Hub': r.stockHub, 'SOH Toko': r.soh,
+    'Safety Stock': r.safety, 'MTD Sales': r.mtd, MOI: Number(r.moi.toFixed(2)),
+    'Qty Alokasi': r.qty,
+  })), 'Detail_Alokasi_per_Toko_' + todayStamp() + '.xlsx', 'Detail');
 });
 
-function exportXlsx(jsonRows, filename) {
+// Export rapi: lebar kolom menyesuaikan isi (maks 45 karakter), header bisa difilter
+// (autofilter), dan nama file otomatis dikasih tanggal supaya gampang dibedakan tiap
+// kali download ulang.
+function exportXlsx(jsonRows, filename, sheetName) {
   if (!jsonRows.length) return;
   const ws = XLSX.utils.json_to_sheet(jsonRows);
+  const headers = Object.keys(jsonRows[0]);
+  ws['!cols'] = headers.map(h => {
+    const maxLen = jsonRows.reduce((m, row) => {
+      const v = row[h] === null || row[h] === undefined ? '' : String(row[h]);
+      return Math.max(m, v.length);
+    }, h.length);
+    return { wch: Math.min(Math.max(maxLen + 2, 10), 45) };
+  });
+  ws['!autofilter'] = { ref: ws['!ref'] };
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Data');
+  XLSX.utils.book_append_sheet(wb, ws, sheetName || 'Data');
   XLSX.writeFile(wb, filename);
 }
 </script>
