@@ -178,7 +178,7 @@
   <header class="top">
     <div>
       <h1>Dashboard Alokasi Stock HUB</h1>
-      <p>Upload 1 file Excel (sheet <code>REGULAR</code>) yang sudah berisi SOH Qty Store (kolom J) dan SOH Hub (kolom K). Upload ulang file yang sama tiap kali mau update & hitung ulang alokasi.</p>
+      <p>Upload 1 file Excel (sheet <code>REGULAR</code>) yang sudah berisi SOH Qty Store (kolom K) dan SOH Hub (kolom L). Upload ulang file yang sama tiap kali mau update & hitung ulang alokasi.</p>
     </div>
   </header>
 
@@ -246,7 +246,7 @@ const $ = (id) => document.getElementById(id);
 const API_URL = 'https://script.google.com/macros/s/AKfycbxOcP0QyKqV-BiUrIJVOdhp9ib98Arfj74AXjZTmhv3paZLEeW3CfoONZlfmQc7NwoL/exec';
 
 let masterStores = null; // dimuat dari server (shared, bukan per-browser lagi)
-let lastHubStock = null; // Map Hub+SKU -> SOH Hub, diturunkan dari kolom K di file yang sama
+let lastHubStock = null; // Map Hub+SKU -> SOH Hub, diturunkan dari kolom L di file yang sama
 
 async function fetchWithTimeout(url, options, ms) {
   const controller = new AbortController();
@@ -499,14 +499,15 @@ function computeAllocation(stores, hubStock) {
       // Stock HUB cukup: tiap toko yang butuh langsung dapat penuh sesuai (Safety Stock - SOH)
       rows.forEach(r => { r.qty = r.kebutuhan; });
     } else {
-      // Stock HUB tidak cukup: hanya toko yang SOH = 0 (total habis) yang ikut rebutan,
-      // dibagi rata (base + sisa), prioritas sisa berdasarkan MOI terkecil -> MTD Sales terbesar -> baris teratas.
-      const needRows = rows.filter(r => r.soh === 0);
-      const grpCount = needRows.length;
-      const base = grpCount ? Math.floor(stockHub / grpCount) : 0;
-      const sisa = grpCount ? (stockHub - base * grpCount) : 0;
+      // Stock HUB tidak cukup untuk semua toko yang butuh (SOH < Safety Stock): alokasi tetap
+      // menuju Safety Stock per toko (dibatasi kebutuhan masing-masing, TIDAK PERNAH lebih dari
+      // kebutuhannya sendiri), tapi karena stock terbatas, dibagi berdasar prioritas ke SEMUA
+      // toko yang masih butuh (bukan cuma yang SOH = 0): MOI terkecil dulu -> kalau MOI sama,
+      // toko yang ada histori sales (MTD Sales) lebih besar diprioritaskan -> baris teratas di file.
+      rows.forEach(r => { r.qty = 0; });
 
-      needRows.forEach(r => { r.moiInternal = r.moiDisplay; }); // SOH=0 -> selalu 0 kecuali tidak ada sales (tetap 0)
+      const needRows = rows.filter(r => r.kebutuhan > 0);
+      needRows.forEach(r => { r.moiInternal = r.moiDisplay; });
 
       needRows.sort((a,b) => {
         if (a.moiInternal !== b.moiInternal) return a.moiInternal - b.moiInternal;
@@ -514,8 +515,13 @@ function computeAllocation(stores, hubStock) {
         return a.internalIdx - b.internalIdx;
       });
 
-      needRows.forEach((r, i) => { r.qty = base + (i < sisa ? 1 : 0); });
-      rows.forEach(r => { if (r.qty === undefined) r.qty = 0; });
+      let remaining = stockHub;
+      needRows.forEach(r => {
+        if (remaining <= 0) return;
+        const give = Math.min(r.kebutuhan, remaining);
+        r.qty = give;
+        remaining -= give;
+      });
     }
 
     const totalAlloc = rows.reduce((a, r) => a + r.qty, 0);
