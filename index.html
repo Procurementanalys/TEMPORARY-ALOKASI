@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard Alokasi Stock HUB</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -39,17 +40,32 @@
   header.top{
     display:flex;justify-content:space-between;align-items:flex-start;
     flex-wrap:wrap;gap:16px;margin-bottom:32px;
+    position:relative;overflow:hidden;isolation:isolate;
+    background:linear-gradient(120deg,#0A4C48 0%,#0E8078 48%,#12988F 78%,#DE9A3C 145%);
+    border-radius:20px;padding:34px 36px;box-shadow:var(--shadow-lift);
   }
+  header.top::before{
+    content:"";position:absolute;inset:0;z-index:-1;
+    background:
+      radial-gradient(420px 220px at 92% -20%, rgba(255,255,255,.20), transparent 60%),
+      radial-gradient(320px 200px at 4% 120%, rgba(0,0,0,.14), transparent 60%);
+  }
+  header.top .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    background:rgba(255,255,255,.16);color:#E8FBF6;
+    font-family:'Inter',sans-serif;font-size:11.5px;font-weight:700;
+    letter-spacing:.10em;text-transform:uppercase;
+    padding:5px 12px;border-radius:999px;margin-bottom:12px;
+    border:1px solid rgba(255,255,255,.22);
+  }
+  header.top .eyebrow::before{content:"";width:7px;height:7px;border-radius:50%;
+    background:#F5C169;box-shadow:0 0 0 4px rgba(245,193,105,.25);}
   header.top h1{
-    font-size:32px;color:var(--teal-deep);letter-spacing:-0.02em;
-    display:flex;align-items:center;gap:14px;
+    font-size:clamp(26px,3vw,36px);color:#fff;letter-spacing:-0.02em;
+    display:flex;align-items:center;gap:14px;text-shadow:0 2px 12px rgba(0,0,0,.12);
   }
-  header.top h1::before{
-    content:"";width:11px;height:34px;border-radius:6px;flex-shrink:0;
-    background:linear-gradient(180deg,var(--teal),var(--amber));
-    box-shadow:0 2px 8px rgba(15,107,102,.35);
-  }
-  header.top p{margin:8px 0 0;color:var(--ink-soft);font-size:14.5px;max-width:620px;line-height:1.6;}
+  header.top p{margin:10px 0 0;color:rgba(255,255,255,.86);font-size:14.5px;max-width:620px;line-height:1.65;}
+  header.top code{background:rgba(255,255,255,.18);color:#fff;}
 
   .upload-grid{
     display:grid;grid-template-columns:1fr;gap:20px;margin-bottom:24px;
@@ -125,28 +141,20 @@
   /* Bungkus tabel supaya kalau kolom kepanjangan, yang muncul scrollbar di DALAM card,
      bukan tabelnya meluber/offside keluar card. */
   .table-scroll{
-    overflow:auto;
+    overflow-x:auto;
     -webkit-overflow-scrolling:touch;
     border:1px solid var(--border);
     border-radius:10px;
-    max-height:min(640px,70vh);
   }
   .table-scroll table{margin-bottom:0;}
 
   table{width:100%;min-width:720px;border-collapse:separate;border-spacing:0;font-size:13px;}
   thead th{
-    position:sticky;top:0;z-index:2;
     text-align:left;padding:11px 12px;background:linear-gradient(180deg,#0F6B66,#0B4F4B);color:#EAF6F4;
     font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;
     border-bottom:1px solid var(--border);white-space:nowrap;
-    box-shadow:0 1px 0 rgba(0,0,0,.12);
   }
-  thead th:hover{color:#fff;background:linear-gradient(180deg,#128079,#0C5B56);}
-  .hub-badge{
-    background:rgba(14,128,120,.12);color:var(--teal-deep);border-radius:999px;
-    padding:2px 10px;font-weight:700;font-size:12px;display:inline-block;
-  }
-  .row-count{color:var(--ink-soft);font-size:12.5px;font-weight:600;white-space:nowrap;}
+  thead th:hover{color:#fff;}
   tbody td{padding:10px 12px;border-bottom:1px solid #EEF1F2;white-space:nowrap;vertical-align:top;}
   tbody tr:nth-child(even){background:#F7FAFA;}
   tbody tr:hover{background:#EAF4F3;}
@@ -185,9 +193,9 @@
 
   <header class="top">
     <div>
+      <span class="eyebrow">Stock Allocation System</span>
       <h1>Dashboard Alokasi Stock HUB</h1>
       <p>Upload 1 file Excel (sheet <code>REGULAR</code>) yang sudah berisi SOH Qty Store (kolom K) dan SOH Hub (kolom L). Upload ulang file yang sama tiap kali mau update & hitung ulang alokasi.</p>
-      <p id="lastComputed" style="margin-top:6px;font-size:12.5px;color:var(--ink-soft);"></p>
     </div>
   </header>
 
@@ -222,11 +230,8 @@
 
     <div class="panel active" id="panel-summary">
       <div class="toolbar">
-        <div class="upload-row" style="gap:12px;">
-          <input class="search" id="searchSummary" placeholder="Cari SKU / nama item / hub...">
-          <span class="row-count" id="countSummary"></span>
-        </div>
-        <button class="export-btn" id="exportSummary">⬇ Download Ringkasan (.xlsx)</button>
+        <input class="search" id="searchSummary" placeholder="Cari SKU / nama item / hub...">
+        <button class="export-btn" id="exportSummary">Download ringkasan (.xlsx)</button>
       </div>
       <div class="table-scroll"><div id="tableSummaryWrap"></div></div>
       <div class="pager" id="pagerSummary"></div>
@@ -234,11 +239,8 @@
 
     <div class="panel" id="panel-detail">
       <div class="toolbar">
-        <div class="upload-row" style="gap:12px;">
-          <input class="search" id="searchDetail" placeholder="Cari toko / SKU / nama item...">
-          <span class="row-count" id="countDetail"></span>
-        </div>
-        <button class="export-btn" id="exportDetail">⬇ Download Detail Alokasi (.xlsx)</button>
+        <input class="search" id="searchDetail" placeholder="Cari toko / SKU / nama item...">
+        <button class="export-btn" id="exportDetail">Download detail alokasi (.xlsx)</button>
       </div>
       <div class="table-scroll"><div id="tableDetailWrap"></div></div>
       <div class="pager" id="pagerDetail"></div>
@@ -551,7 +553,7 @@ function computeAllocation(stores, hubStock) {
       if (r.qty > 0) {
         detailData.push({
           hub: r.hub, kodeStore: r.kodeStore, storeName: r.storeName,
-          sku: r.sku, item: r.itemDesc, stockHub, soh: r.soh, safety: r.safety,
+          sku: r.sku, item: r.itemDesc, soh: r.soh, safety: r.safety,
           mtd: r.mtd, moi: r.moiDisplay, qty: r.qty,
         });
       }
@@ -566,7 +568,6 @@ function computeAllocation(stores, hubStock) {
   summaryPage = 1; detailPage = 1;
   renderSummary();
   renderDetail();
-  $('lastComputed').textContent = 'Alokasi dihitung ulang: ' + new Date().toLocaleString('id-ID');
 }
 
 // ---------- rendering: summary ----------
@@ -582,8 +583,6 @@ function renderSummary() {
   summaryPage = Math.min(summaryPage, pages);
   const start = (summaryPage-1)*PAGE_SIZE;
   const pageRows = rows.slice(start, start+PAGE_SIZE);
-
-  $('countSummary').textContent = total ? total.toLocaleString('id-ID') + ' baris' : '';
 
   if (!total) {
     $('tableSummaryWrap').innerHTML = '<div class="empty">Tidak ada data yang cocok.</div>';
@@ -609,7 +608,7 @@ function renderSummary() {
       statusCell = `<td class="${r.status==='Cukup'?'check-ok':'check-bad'}">${r.status}</td>`;
     }
     html += `<tr>
-      <td><span class="hub-badge">${esc(r.hub)}</span></td><td>${esc(r.sku)}</td><td class="truncate" title="${esc(r.item)}">${esc(r.item)}</td>
+      <td>${esc(r.hub)}</td><td>${esc(r.sku)}</td><td class="truncate" title="${esc(r.item)}">${esc(r.item)}</td>
       <td class="num-cell">${r.stockHub}</td>
       <td class="num-cell">${r.kebutuhan}</td>
       <td class="num-cell">${r.totalAlloc}</td>
@@ -637,8 +636,6 @@ function renderDetail() {
   const start = (detailPage-1)*PAGE_SIZE;
   const pageRows = rows.slice(start, start+PAGE_SIZE);
 
-  $('countDetail').textContent = total ? total.toLocaleString('id-ID') + ' baris' : '';
-
   if (!total) {
     $('tableDetailWrap').innerHTML = '<div class="empty"><b>Belum ada alokasi.</b><br>Coba upload file dengan Stock HUB terisi, atau ubah kata kunci pencarian.</div>';
     $('pagerDetail').innerHTML = '';
@@ -648,8 +645,7 @@ function renderDetail() {
   const cols = [
     {k:'hub', l:'Hub'}, {k:'kodeStore', l:'Kode Toko'}, {k:'storeName', l:'Nama Toko'},
     {k:'sku', l:'SKU'}, {k:'item', l:'Item'},
-    {k:'stockHub', l:'SOH Hub', num:true},
-    {k:'soh', l:'SOH Toko', num:true}, {k:'safety', l:'Safety Stock', num:true},
+    {k:'soh', l:'SOH', num:true}, {k:'safety', l:'Safety Stock', num:true},
     {k:'mtd', l:'MTD Sales', num:true},
     {k:'moi', l:'MOI', num:true}, {k:'qty', l:'Qty Alokasi', num:true},
   ];
@@ -660,9 +656,8 @@ function renderDetail() {
 
   pageRows.forEach(r => {
     html += `<tr>
-      <td><span class="hub-badge">${esc(r.hub)}</span></td><td>${esc(r.kodeStore)}</td><td class="truncate" title="${esc(r.storeName)}">${esc(r.storeName)}</td>
+      <td>${esc(r.hub)}</td><td>${esc(r.kodeStore)}</td><td class="truncate" title="${esc(r.storeName)}">${esc(r.storeName)}</td>
       <td>${esc(r.sku)}</td><td class="truncate" title="${esc(r.item)}">${esc(r.item)}</td>
-      <td class="num-cell">${r.stockHub}</td>
       <td class="num-cell">${r.soh}</td>
       <td class="num-cell">${r.safety}</td>
       <td class="num-cell">${r.mtd}</td>
@@ -742,49 +737,129 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 $('searchSummary').addEventListener('input', () => { summaryPage=1; renderSummary(); });
 $('searchDetail').addEventListener('input', () => { detailPage=1; renderDetail(); });
 
-// ---------- export ----------
-function todayStamp() {
-  const d = new Date();
-  const p = (n) => String(n).padStart(2,'0');
-  return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
+// ---------- export (styled, rapi buat dibuka di Excel) ----------
+const BRAND = {
+  headerFill: 'FF0E6B66',   // teal deep, sama nuansa sama header web
+  titleFill:  'FF0A4C48',
+  bandFill:   'FFF3F8F8',   // zebra stripe halus
+  border:     'FFDCE6E8',
+  okFill:     'FFE3F3EA', okFont:'FF1F6B4C',
+  badFill:    'FFFBE7E2', badFont:'FFB03E2A',
+  white:      'FFFFFFFF',
+};
+
+async function exportStyledXlsx({ title, sheetName, columns, rows, statusKey, filename }) {
+  if (!rows.length) return;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Dashboard Alokasi Stock HUB';
+  wb.created = new Date();
+  const ws = wb.addWorksheet(sheetName, { views: [{ state: 'frozen', ySplit: 4 }] });
+
+  const lastCol = columns.length;
+  // Row 1: judul
+  ws.mergeCells(1, 1, 1, lastCol);
+  const titleCell = ws.getCell(1, 1);
+  titleCell.value = title;
+  titleCell.font = { name: 'Calibri', size: 14, bold: true, color: { argb: BRAND.white } };
+  titleCell.alignment = { vertical: 'middle', horizontal: 'left' };
+  titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND.titleFill } };
+  ws.getRow(1).height = 26;
+
+  // Row 2: subjudul (tanggal export + jumlah baris)
+  ws.mergeCells(2, 1, 2, lastCol);
+  const subCell = ws.getCell(2, 1);
+  const now = new Date();
+  subCell.value = `Diekspor ${now.toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'})} ${now.toLocaleTimeString('id-ID')} — ${rows.length.toLocaleString('id-ID')} baris`;
+  subCell.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF52708A' } };
+  subCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEF3F6' } };
+  ws.getRow(2).height = 18;
+
+  // Row 3: spacer kosong
+  ws.getRow(3).height = 6;
+
+  // Row 4: header kolom
+  const headerRow = ws.getRow(4);
+  columns.forEach((c, i) => {
+    const cell = headerRow.getCell(i + 1);
+    cell.value = c.header;
+    cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: BRAND.white } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND.headerFill } };
+    cell.alignment = { vertical: 'middle', horizontal: c.numFmt ? 'right' : 'left', wrapText: true };
+    cell.border = { bottom: { style: 'thin', color: { argb: 'FF0A4C48' } } };
+  });
+  headerRow.height = 22;
+  ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: lastCol } };
+
+  // Data rows
+  rows.forEach((r, idx) => {
+    const row = ws.getRow(5 + idx);
+    columns.forEach((c, i) => {
+      const cell = row.getCell(i + 1);
+      cell.value = r[c.key] === null || r[c.key] === undefined ? '' : r[c.key];
+      if (c.numFmt) { cell.numFmt = c.numFmt; cell.alignment = { horizontal: 'right' }; }
+      else { cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true }; }
+      cell.border = { bottom: { style: 'thin', color: { argb: BRAND.border } } };
+      if (idx % 2 === 1) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND.bandFill } };
+      }
+      if (statusKey && c.key === statusKey) {
+        const ok = String(r[c.key]).toLowerCase() === 'cukup';
+        cell.font = { bold: true, color: { argb: ok ? BRAND.okFont : BRAND.badFont } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ok ? BRAND.okFill : BRAND.badFill } };
+        cell.alignment = { horizontal: 'center' };
+      }
+    });
+  });
+
+  columns.forEach((c, i) => { ws.getColumn(i + 1).width = c.width || 16; });
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
 }
 
 $('exportSummary').addEventListener('click', () => {
-  if (!summaryData.length) { alert('Belum ada data ringkasan untuk di-export.'); return; }
-  exportXlsx(summaryData.map(r => ({
-    Hub: r.hub, SKU: r.sku, Item: r.item, 'SOH Hub': r.stockHub,
-    'Total Kebutuhan': r.kebutuhan, 'Total Teralokasi': r.totalAlloc, Status: r.status,
-  })), 'Ringkasan_Alokasi_per_SKU_' + todayStamp() + '.xlsx', 'Ringkasan');
+  exportStyledXlsx({
+    title: 'Ringkasan Alokasi Stock per SKU — Dashboard Alokasi Stock HUB',
+    sheetName: 'Ringkasan',
+    statusKey: 'status',
+    columns: [
+      { key:'hub', header:'Hub', width:14 },
+      { key:'sku', header:'SKU', width:16 },
+      { key:'item', header:'Item', width:38 },
+      { key:'stockHub', header:'Stock HUB', width:14, numFmt:'#,##0' },
+      { key:'kebutuhan', header:'Total Kebutuhan', width:16, numFmt:'#,##0' },
+      { key:'totalAlloc', header:'Total Teralokasi', width:16, numFmt:'#,##0' },
+      { key:'status', header:'Status', width:14 },
+    ],
+    rows: summaryData,
+    filename: 'Ringkasan_Alokasi_per_SKU.xlsx',
+  });
 });
 $('exportDetail').addEventListener('click', () => {
-  if (!detailData.length) { alert('Belum ada data detail alokasi untuk di-export.'); return; }
-  exportXlsx(detailData.map(r => ({
-    Hub: r.hub, 'Kode Toko': r.kodeStore, 'Nama Toko': r.storeName,
-    SKU: r.sku, Item: r.item, 'SOH Hub': r.stockHub, 'SOH Toko': r.soh,
-    'Safety Stock': r.safety, 'MTD Sales': r.mtd, MOI: Number(r.moi.toFixed(2)),
-    'Qty Alokasi': r.qty,
-  })), 'Detail_Alokasi_per_Toko_' + todayStamp() + '.xlsx', 'Detail');
-});
-
-// Export rapi: lebar kolom menyesuaikan isi (maks 45 karakter), header bisa difilter
-// (autofilter), dan nama file otomatis dikasih tanggal supaya gampang dibedakan tiap
-// kali download ulang.
-function exportXlsx(jsonRows, filename, sheetName) {
-  if (!jsonRows.length) return;
-  const ws = XLSX.utils.json_to_sheet(jsonRows);
-  const headers = Object.keys(jsonRows[0]);
-  ws['!cols'] = headers.map(h => {
-    const maxLen = jsonRows.reduce((m, row) => {
-      const v = row[h] === null || row[h] === undefined ? '' : String(row[h]);
-      return Math.max(m, v.length);
-    }, h.length);
-    return { wch: Math.min(Math.max(maxLen + 2, 10), 45) };
+  exportStyledXlsx({
+    title: 'Detail Alokasi per Toko — Dashboard Alokasi Stock HUB',
+    sheetName: 'Detail',
+    columns: [
+      { key:'hub', header:'Hub', width:14 },
+      { key:'kodeStore', header:'Kode Toko', width:14 },
+      { key:'storeName', header:'Nama Toko', width:30 },
+      { key:'sku', header:'SKU', width:16 },
+      { key:'item', header:'Item', width:34 },
+      { key:'soh', header:'SOH', width:12, numFmt:'#,##0' },
+      { key:'safety', header:'Safety Stock', width:14, numFmt:'#,##0' },
+      { key:'mtd', header:'MTD Sales', width:14, numFmt:'#,##0' },
+      { key:'moi', header:'MOI', width:10, numFmt:'0.00' },
+      { key:'qty', header:'Qty Alokasi', width:14, numFmt:'#,##0' },
+    ],
+    rows: detailData,
+    filename: 'Detail_Alokasi_per_Toko.xlsx',
   });
-  ws['!autofilter'] = { ref: ws['!ref'] };
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, sheetName || 'Data');
-  XLSX.writeFile(wb, filename);
-}
+});
 </script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
 </body>
