@@ -189,7 +189,7 @@
       <input type="file" id="fileInputMaster" accept=".xlsx,.xls">
       <span class="file-name" id="fileNameMaster">Belum ada file dipilih</span>
     </div>
-    <div class="hint">File harus punya sheet <b>REGULAR</b> berisi data per toko: Kode Toko, Nama Toko, SKU, Item, Hub, Safety Stock, <b>SOH Qty Store (kolom J)</b>, <b>SOH Hub (kolom K)</b>, dan MTD Sales. Data ini tersimpan di server (sama untuk semua yang buka dashboard), sampai Anda upload file baru.</div>
+    <div class="hint">File harus punya sheet <b>REGULAR</b> berisi data per toko: Kode Toko, Nama Toko, SKU, Item, Hub, Safety Stock, <b>SOH Qty Store (kolom K)</b>, <b>SOH Hub (kolom L)</b>, dan MTD Sales. Kolom H ("Key") boleh diisi bebas untuk bantu VLOOKUP Anda sendiri — tidak dibaca oleh dashboard. Data ini tersimpan di server (sama untuk semua yang buka dashboard), sampai Anda upload file baru.</div>
     <div id="statusMaster" class="status"></div>
     <div id="masterInfo" style="display:none;margin-top:10px;">
       <button class="export-btn" id="btnGantiMaster">Hapus Data</button>
@@ -376,11 +376,11 @@ function findSheet(wb, nameGuess) {
 }
 
 // Kolom (0-based), sesuai struktur Template Master terbaru (1 file, sheet REGULAR):
-// 0 KodeStore, 1 StoreName, 3 SKU, 4 ItemDesc, 6 Hub,
-// 8 SafetyStock ("System Safety Stock"),
-// 9  SOH Qty Store (kolom J) — SOH per toko
-// 10 SOH Hub (kolom K)       — SOH per Hub+SKU (nilainya sama utk semua toko dalam 1 Hub+SKU)
-// 11 MTD Sales ("MTD SALES")
+// 0 KodeStore, 1 StoreName, 3 SKU, 4 ItemDesc, 6 Hub, 7 Key (bantuan VLOOKUP user, tidak dipakai dashboard),
+// 9  SafetyStock ("System Safety Stock")
+// 10 SOH Qty Store (kolom K) — SOH per toko
+// 11 SOH Hub (kolom L)       — SOH per Hub+SKU (nilainya sama utk semua toko dalam 1 Hub+SKU)
+// 12 MTD Sales ("MTD SALES")
 
 async function processMasterWorkbook(wb) {
   const regSheet = findSheet(wb, 'regular');
@@ -395,15 +395,15 @@ async function processMasterWorkbook(wb) {
   const regRowsText = XLSX.utils.sheet_to_json(regSheet, {header:1, defval:null, raw:false});
 
   const stores = [];
-  const hubStock = new Map(); // key: Hub|SKU -> SOH Hub (kolom K)
+  const hubStock = new Map(); // key: Hub|SKU -> SOH Hub (kolom L)
 
   for (let i = 1; i < regRows.length; i++) {
     const r = regRows[i];
     const rt = regRowsText[i] || [];
     if (!r || r[6] == null || r[3] == null) continue;
-    const soh = toNum(r[9]);
-    const mtd = toNum(r[11]);
-    const safety = toNum(r[8]);
+    const soh = toNum(r[10]);
+    const mtd = toNum(r[12]);
+    const safety = toNum(r[9]);
     if (soh === null) continue;
 
     const hub = String(r[6]).trim();
@@ -421,10 +421,10 @@ async function processMasterWorkbook(wb) {
       mtd: mtd || 0,
     });
 
-    // SOH Hub (kolom K) cukup diisi 1x per kombinasi Hub+SKU; ambil nilai pertama yang
+    // SOH Hub (kolom L) cukup diisi 1x per kombinasi Hub+SKU; ambil nilai pertama yang
     // terisi supaya baris lain dalam kombinasi yang sama yang kosong tidak menimpanya.
     if (!hubStock.has(hub + '|' + sku)) {
-      const stockVal = toNum(r[10]);
+      const stockVal = toNum(r[11]);
       if (stockVal !== null) hubStock.set(hub + '|' + sku, stockVal);
     }
   }
