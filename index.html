@@ -335,9 +335,10 @@ function findSheet(wb, nameGuess) {
   return contains ? wb.Sheets[contains] : null;
 }
 
-// Kolom (0-based), sesuai struktur Master Template:
-// REGULAR: 0 KodeStore, 1 StoreName, 3 SKU, 4 ItemDesc, 7 Hub, 12 SafetyStock, 13 SOH, 17 MTDSales
-// HUB: 3 SKU, 7 Hub, 14 SOH Hub
+// Kolom (0-based), sesuai struktur Master Template (dikonfirmasi user):
+// REGULAR: 0 KodeStore, 1 StoreName, 3 SKU, 4 ItemDesc, 6 Hub,
+//          8 SafetyStock ("System Safety Stock"), 9 SOH ("SOH Qty"), 13 MTDSales ("MTD SALES")
+// HUB: 3 SKU, 6 Hub, 10 SOH Hub ("SOH Hub")
 
 function processMasterWorkbook(wb) {
   const regSheet = findSheet(wb, 'regular');
@@ -350,10 +351,10 @@ function processMasterWorkbook(wb) {
   const stores = [];
   for (let i = 1; i < regRows.length; i++) {
     const r = regRows[i];
-    if (!r || r[7] == null || r[3] == null) continue;
-    const soh = toNum(r[13]);
-    const mtd = toNum(r[17]);
-    const safety = toNum(r[12]);
+    if (!r || r[6] == null || r[3] == null) continue;
+    const soh = toNum(r[9]);
+    const mtd = toNum(r[13]);
+    const safety = toNum(r[8]);
     if (soh === null) continue;
     stores.push({
       rowIndex: i,
@@ -361,7 +362,7 @@ function processMasterWorkbook(wb) {
       storeName: r[1],
       sku: String(r[3]).trim(),
       itemDesc: r[4],
-      hub: String(r[7]).trim(),
+      hub: String(r[6]).trim(),
       safety: safety || 0,
       soh: soh,
       mtd: mtd || 0,
@@ -398,9 +399,9 @@ function processHubWorkbook(wb) {
   const hubStock = new Map();
   for (let i = 1; i < hubRows.length; i++) {
     const r = hubRows[i];
-    if (!r || r[7] == null || r[3] == null) continue;
-    const key = String(r[7]).trim() + '|' + String(r[3]).trim();
-    const stockVal = toNum(r[14]) || 0;
+    if (!r || r[6] == null || r[3] == null) continue;
+    const key = String(r[6]).trim() + '|' + String(r[3]).trim();
+    const stockVal = toNum(r[10]) || 0;
     if (!hubStock.has(key)) hubStock.set(key, stockVal);
   }
 
